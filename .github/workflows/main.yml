@@ -1,4 +1,4 @@
-name: Update Ncurses (Release)
+name: Update Zlib (Release)
 
 on:
   schedule:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  release-ncurses:
+  release-zlib:
     runs-on: ubuntu-latest
 
     permissions:
@@ -21,16 +21,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y wget dpkg-dev rsync zip file
 
-      - name: Set Ncurses version
+      - name: Set Zlib version
         id: get_version
         run: |
-          VERSION="6.5.20240831-3"
+          VERSION="1.3.1-1"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Download, verify, normalize paths, and zip per-ABI
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"
-          BASE_URL="https://packages.termux.dev/apt/termux-main/pool/main/n/ncurses/"
+          BASE_URL="https://packages.termux.dev/apt/termux-main/pool/main/z/zlib/"
 
           declare -A archs=(
             [aarch64]=aarch64
@@ -43,7 +43,7 @@ jobs:
           mkdir -p dist work
 
           for arch in "${!archs[@]}"; do
-            DEB_NAME="ncurses_${VERSION}_${arch}.deb"
+            DEB_NAME="zlib_${VERSION}_${arch}.deb"
             URL="$BASE_URL$DEB_NAME"
 
             echo "Downloading $DEB_NAME from $URL"
@@ -61,23 +61,23 @@ jobs:
             dpkg-deb -x "$DEB_NAME" "work/$arch"
 
             # Normalize layout: copy usr/ only
-            mkdir -p "dist/ncurses-$arch/usr"
+            mkdir -p "dist/zlib-$arch/usr"
             rsync -a "work/$arch/data/data/com.termux/files/usr/" \
-                     "dist/ncurses-$arch/usr/"
+                     "dist/zlib-$arch/usr/"
 
             # Zip per architecture
             cd dist
-            zip -qr "ncurses-${VERSION}-${arch}.zip" "ncurses-$arch"
+            zip -qr "zlib-${VERSION}-${arch}.zip" "zlib-$arch"
             cd ..
           done
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ncurses-${{ steps.get_version.outputs.version }}
-          name: Ncurses ${{ steps.get_version.outputs.version }}
+          tag_name: zlib-${{ steps.get_version.outputs.version }}
+          name: Zlib ${{ steps.get_version.outputs.version }}
           body: |
-            Ncurses binaries built from Termux packages.
+            Zlib binaries built from Termux packages.
 
             Path normalization applied:
             - Removed /data/data/com.termux/files
