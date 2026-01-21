@@ -1,4 +1,4 @@
-name: Update zlib (Release)
+name: Update Ncurses (Release)
 
 on:
   schedule:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  release-zlib:
+  release-ncurses:
     runs-on: ubuntu-latest
 
     permissions:
@@ -19,25 +19,18 @@ jobs:
       - name: Install required tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y wget dpkg-dev rsync zip
+          sudo apt-get install -y wget dpkg-dev rsync zip file
 
-      - name: Detect latest zlib version
+      - name: Set Ncurses version
         id: get_version
         run: |
-          BASE_URL="https://grimler.se/termux-main/pool/main/z/zlib/"
-          wget -qO- "$BASE_URL" \
-            | grep -o 'zlib_[^"]*_aarch64.deb' \
-            | sort -V \
-            | tail -n1 > latest.txt
-
-          FILE=$(cat latest.txt)
-          VERSION=$(echo "$FILE" | sed -E 's/zlib_([^_]*)_.*/\1/')
+          VERSION="6.5.20240831-3"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Download, normalize paths, and zip per-ABI
+      - name: Download, verify, normalize paths, and zip per-ABI
         run: |
-          BASE_URL="https://grimler.se/termux-main/pool/main/z/zlib/"
           VERSION="${{ steps.get_version.outputs.version }}"
+          BASE_URL="https://packages.termux.dev/apt/termux-main/pool/main/n/ncurses/"
 
           declare -A archs=(
             [aarch64]=aarch64
@@ -50,32 +43,41 @@ jobs:
           mkdir -p dist work
 
           for arch in "${!archs[@]}"; do
-            DEB="zlib_${VERSION}_${arch}.deb"
-            echo "Downloading $DEB"
-            wget -q "$BASE_URL$DEB" -O "$DEB"
+            DEB_NAME="ncurses_${VERSION}_${arch}.deb"
+            URL="$BASE_URL$DEB_NAME"
+
+            echo "Downloading $DEB_NAME from $URL"
+            wget -q --show-progress "$URL" -O "$DEB_NAME"
+
+            # Verify it is a Debian archive
+            FILE_TYPE=$(file "$DEB_NAME")
+            if [[ "$FILE_TYPE" != *"Debian binary package"* ]]; then
+              echo "Error: $DEB_NAME is not a valid Debian archive!"
+              exit 1
+            fi
 
             # Extract deb
             mkdir -p "work/$arch"
-            dpkg-deb -x "$DEB" "work/$arch"
+            dpkg-deb -x "$DEB_NAME" "work/$arch"
 
-            # Normalize layout: usr/...
-            mkdir -p "dist/zlib-$arch/usr"
+            # Normalize layout: copy usr/ only
+            mkdir -p "dist/ncurses-$arch/usr"
             rsync -a "work/$arch/data/data/com.termux/files/usr/" \
-                     "dist/zlib-$arch/usr/"
+                     "dist/ncurses-$arch/usr/"
 
             # Zip per architecture
             cd dist
-            zip -qr "zlib-${VERSION}-${arch}.zip" "zlib-$arch"
+            zip -qr "ncurses-${VERSION}-${arch}.zip" "ncurses-$arch"
             cd ..
           done
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: zlib-${{ steps.get_version.outputs.version }}
-          name: zlib ${{ steps.get_version.outputs.version }}
+          tag_name: ncurses-${{ steps.get_version.outputs.version }}
+          name: Ncurses ${{ steps.get_version.outputs.version }}
           body: |
-            zlib binaries built from Termux packages.
+            Ncurses binaries built from Termux packages.
 
             Path normalization applied:
             - Removed /data/data/com.termux/files
